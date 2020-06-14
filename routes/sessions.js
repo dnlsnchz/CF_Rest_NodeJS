@@ -1,12 +1,10 @@
-const usersController = require('../controllers/UsersController');
 const express = require('express');
 const router = express.Router();
 const sessionsController = require('../controllers/SessionsController');
 
 router.route('/')
-.post(usersController.create,
+.post(sessionsController.authenticate,
       sessionsController.generateToken,
-      sessionsController.sendToken)
-.get(usersController.myPlaces);
+      sessionsController.sendToken);
 
 module.exports = router;

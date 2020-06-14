@@ -1,12 +1,16 @@
-
 const Place = require('../models/Place');
 const upload = require('../config/upload')
 const uploader = require('../models/Uploader');
+const helpers = require('./helpers');
 
+const validParams = ['title','description','acceptsCreditCard','openHour' ,'closeHour', 'address']
 function find(req,res,next){
-  Place.findById(req.params.id)
+  //console.log('req.body',req);
+  //Place.findById(req.params.id)
+  Place.findOne({slug : req.params.id})
   .then(place => {
     req.place = place;
+    req.mainObj = place;
     next();
   }).catch(err=>{
     next(err);
@@ -26,16 +30,10 @@ function index(req,res){
   });
 };
 function create (req,res,next){
-
-    Place.create(
-      {
-        title: req.body.title,
-        description : req.body.description,
-        acceptsCreditCard: req.body.acceptsCreditCard,
-        openHour: req.body.openHour,
-        closeHour: req.body.closeHour,
-        slug: req.body.slug
-      })
+    const params = helpers.paramsBuilder(validParams, req.body);
+    console.log('req.user.id',req.user.id);
+    params['_user'] = req.user.id;
+    Place.create(params)
       .then(doc => {
         req.place = doc;
         //res.json(doc);
@@ -59,16 +57,8 @@ function show (req,res){
   */
 };
 function update (req,res){
-
-  let attributes = ['title', 'description', 'acceptsCreditCard', 'openHour', 'closeHour', 'slug'];
-  let placeParams ={};
-  attributes.forEach(attr =>{
-    if (Object.prototype.hasOwnProperty.call(req.body,attr)) {
-      placeParams[attr]= req.body[attr];
-    }
-  });
-
-  req.place = Object.assign(req.place,placeParams);
+  const params = helpers.paramsBuilder(validParams, req.body);
+  req.place = Object.assign(req.place,params);
 
   req.place.save()
   //Place.findByIdAndUpdate(req.params.id,placeParams,{new:true})
@@ -102,16 +92,24 @@ function multerMiddleware(){
 
 function saveImage(req,res){
   if (req.place) {
-    if (req.files && req.files.avatar) {
-      const path = req.files.avatar[0].path;
-      uploader(path).then(result => {
-        console.log(result);
-        res.json(req.place);
-      }).catch(err =>{
-        console.log(err);
-        res.json(err);
-      })
-    }
+    const files = ['avatar','cover'];
+    const promises = [];
+
+    files.forEach(imageType => {
+      if (req.files && req.files[imageType]) {
+        const path = req.files[imageType][0].path;
+        promises.push(req.place.updateImage(path,imageType));
+      }
+    });
+
+    Promise.all(promises).then(results =>{
+      console.log(results);
+      res.json(req.place);
+    }).catch(err=> {
+      console.log(err);
+      res.json(err);
+    })
+
   }else {
     res.status(422).json({
       error: req.error || 'Could not save place'
